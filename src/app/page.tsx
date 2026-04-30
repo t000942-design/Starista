@@ -4,7 +4,11 @@ import { useState, type FormEvent } from "react";
 
 type AgeRange = "4-6" | "7-9" | "10-12";
 type StoryPage = { pageNumber: number; text: string };
-type Story = { title: string; pages: StoryPage[] };
+type Story = {
+  title: string;
+  pages: StoryPage[];
+  coverImageUrl?: string | null;
+};
 
 const AGE_OPTIONS: { value: AgeRange; label: string }[] = [
   { value: "4-6", label: "Ages 4–6" },
@@ -187,12 +191,22 @@ export default function Home() {
                 </span>
               </div>
 
-              <article className="bg-[var(--bg-elev)] border border-[var(--border)] rounded-3xl p-6 sm:p-10 shadow-[0_10px_30px_rgba(0,0,0,0.35)] min-h-[420px]">
-                <h2 className="text-2xl sm:text-3xl font-bold tracking-tight gradient-text">
-                  {story.title}
-                </h2>
-                <div className="mt-6 text-base sm:text-lg leading-relaxed whitespace-pre-wrap">
-                  {story.pages[pageIndex]?.text}
+              <article className="bg-[var(--bg-elev)] border border-[var(--border)] rounded-3xl overflow-hidden shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
+                {pageIndex === 0 && story.coverImageUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={story.coverImageUrl}
+                    alt={story.title}
+                    className="w-full aspect-[16/9] object-cover"
+                  />
+                )}
+                <div className="p-6 sm:p-10 min-h-[280px]">
+                  <h2 className="text-2xl sm:text-3xl font-bold tracking-tight gradient-text">
+                    {story.title}
+                  </h2>
+                  <div className="mt-6 text-base sm:text-lg leading-relaxed whitespace-pre-wrap">
+                    {story.pages[pageIndex]?.text}
+                  </div>
                 </div>
               </article>
 

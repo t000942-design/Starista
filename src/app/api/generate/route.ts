@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
+import { generateCoverImage } from "@/lib/lumen";
 
 export const runtime = "nodejs";
+export const maxDuration = 120;
 
 type AgeRange = "4-6" | "7-9" | "10-12";
 
 type StoryPage = { pageNumber: number; text: string };
-type Story = { title: string; pages: StoryPage[] };
+type Story = { title: string; pages: StoryPage[]; coverImageUrl?: string | null };
 
 const AGE_GUIDANCE: Record<AgeRange, string> = {
   "4-6":
@@ -177,5 +179,27 @@ export async function POST(req: Request) {
     .slice(0, 4)
     .map((p, i) => ({ pageNumber: i + 1, text: p.text.trim() }));
 
+  // Try to attach a cover illustration via Lumen. If it fails, return the story without one.
+  if (process.env.LUMEN_TOKEN) {
+    try {
+      const coverPrompt = buildCoverPrompt(story.title, idea, age);
+      story.coverImageUrl = await generateCoverImage(coverPrompt);
+    } catch (err) {
+      console.warn("Lumen cover generation failed:", err);
+      story.coverImageUrl = null;
+    }
+  }
+
   return NextResponse.json(story);
+}
+
+function buildCoverPrompt(title: string, idea: string, age: AgeRange) {
+  const styleHint =
+    age === "4-6"
+      ? "soft watercolor children's picture-book illustration, gentle colors, friendly characters, warm lighting"
+      : age === "7-9"
+        ? "whimsical storybook illustration, vibrant colors, expressive characters, painterly style"
+        : "richly detailed children's book illustration, cinematic lighting, magical atmosphere";
+
+  return `Children's book cover illustration for the story "${title}". ${styleHint}. Story idea: ${idea}. No text, no letters, no logos.`;
 }
