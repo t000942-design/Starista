@@ -160,7 +160,7 @@ function extractImageUrl(result: ToolCallResult): string | null {
   return null;
 }
 
-export async function generateCoverImage(
+export async function generateImage(
   prompt: string,
   opts: { modelId?: number; aspectRatio?: string } = {}
 ): Promise<string | null> {
@@ -173,4 +173,14 @@ export async function generateCoverImage(
     1000 + Math.floor(Math.random() * 100000)
   );
   return extractImageUrl(result);
+}
+
+export async function generateImages(
+  prompts: string[],
+  opts: { modelId?: number; aspectRatio?: string } = {}
+): Promise<(string | null)[]> {
+  const settled = await Promise.allSettled(
+    prompts.map((p) => generateImage(p, opts))
+  );
+  return settled.map((r) => (r.status === "fulfilled" ? r.value : null));
 }

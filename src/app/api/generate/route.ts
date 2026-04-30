@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
-import { generateCoverImage } from "@/lib/lumen";
+import { generateImages } from "@/lib/lumen";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 180;
 
 type AgeRange = "4-6" | "7-9" | "10-12";
 
-type StoryPage = { pageNumber: number; text: string };
-type Story = { title: string; pages: StoryPage[]; coverImageUrl?: string | null };
+type StoryPage = { pageNumber: number; text: string; imageUrl?: string | null };
+type Story = { title: string; pages: StoryPage[] };
 
 const AGE_GUIDANCE: Record<AgeRange, string> = {
   "4-6":
@@ -179,27 +179,31 @@ export async function POST(req: Request) {
     .slice(0, 4)
     .map((p, i) => ({ pageNumber: i + 1, text: p.text.trim() }));
 
-  // Try to attach a cover illustration via Lumen. If it fails, return the story without one.
+  // Generate one illustration per page in parallel via Lumen. Each failure is independent.
   if (process.env.LUMEN_TOKEN) {
     try {
-      const coverPrompt = buildCoverPrompt(story.title, idea, age);
-      story.coverImageUrl = await generateCoverImage(coverPrompt);
+      const styleHint = artStyleFor(age);
+      const prompts = story.pages.map((p) => buildPagePrompt(story.title, p.text, styleHint));
+      const images = await generateImages(prompts);
+      story.pages = story.pages.map((p, i) => ({ ...p, imageUrl: images[i] ?? null }));
     } catch (err) {
-      console.warn("Lumen cover generation failed:", err);
-      story.coverImageUrl = null;
+      console.warn("Lumen image generation failed:", err);
     }
   }
 
   return NextResponse.json(story);
 }
 
-function buildCoverPrompt(title: string, idea: string, age: AgeRange) {
-  const styleHint =
-    age === "4-6"
-      ? "soft watercolor children's picture-book illustration, gentle colors, friendly characters, warm lighting"
-      : age === "7-9"
-        ? "whimsical storybook illustration, vibrant colors, expressive characters, painterly style"
-        : "richly detailed children's book illustration, cinematic lighting, magical atmosphere";
+function artStyleFor(age: AgeRange) {
+  return age === "4-6"
+    ? "soft watercolor children's picture-book illustration, gentle pastel colors, friendly rounded characters, warm cozy lighting"
+    : age === "7-9"
+      ? "whimsical storybook illustration, vibrant colors, expressive characters, painterly style with a hand-drawn feel"
+      : "richly detailed middle-grade book illustration, cinematic lighting, slightly more mature palette, magical atmosphere";
+}
 
-  return `Children's book cover illustration for the story "${title}". ${styleHint}. Story idea: ${idea}. No text, no letters, no logos.`;
+function buildPagePrompt(title: string, pageText: string, styleHint: string) {
+  // Trim long page text for the prompt — illustrators care about the scene, not every line.
+  const scene = pageText.replace(/\s+/g, " ").trim().slice(0, 600);
+  return `${styleHint}. A single illustration for one page of the children's book "${title}". Scene to depict: ${scene}. No text, no letters, no logos, no speech bubbles, no captions.`;
 }

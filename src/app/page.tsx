@@ -3,12 +3,8 @@
 import { useState, type FormEvent } from "react";
 
 type AgeRange = "4-6" | "7-9" | "10-12";
-type StoryPage = { pageNumber: number; text: string };
-type Story = {
-  title: string;
-  pages: StoryPage[];
-  coverImageUrl?: string | null;
-};
+type StoryPage = { pageNumber: number; text: string; imageUrl?: string | null };
+type Story = { title: string; pages: StoryPage[] };
 
 const AGE_OPTIONS: { value: AgeRange; label: string }[] = [
   { value: "4-6", label: "Ages 4–6" },
@@ -167,7 +163,7 @@ export default function Home() {
                   {loading ? (
                     <>
                       <span className="inline-block w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                      Writing your story…
+                      Writing & illustrating… (about a minute)
                     </>
                   ) : (
                     <>✨ Create my story</>
@@ -192,19 +188,21 @@ export default function Home() {
               </div>
 
               <article className="bg-[var(--bg-elev)] border border-[var(--border)] rounded-3xl overflow-hidden shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
-                {pageIndex === 0 && story.coverImageUrl && (
+                {story.pages[pageIndex]?.imageUrl && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={story.coverImageUrl}
-                    alt={story.title}
+                    src={story.pages[pageIndex]!.imageUrl!}
+                    alt={`Illustration for page ${pageIndex + 1}`}
                     className="w-full aspect-[16/9] object-cover"
                   />
                 )}
-                <div className="p-6 sm:p-10 min-h-[280px]">
-                  <h2 className="text-2xl sm:text-3xl font-bold tracking-tight gradient-text">
-                    {story.title}
-                  </h2>
-                  <div className="mt-6 text-base sm:text-lg leading-relaxed whitespace-pre-wrap">
+                <div className="p-6 sm:p-10 min-h-[240px]">
+                  {pageIndex === 0 && (
+                    <h2 className="text-2xl sm:text-3xl font-bold tracking-tight gradient-text mb-4">
+                      {story.title}
+                    </h2>
+                  )}
+                  <div className="text-base sm:text-lg leading-relaxed whitespace-pre-wrap">
                     {story.pages[pageIndex]?.text}
                   </div>
                 </div>
