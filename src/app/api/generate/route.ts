@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { generateImages } from "@/lib/lumen";
+import { generateImages as generateImagesLumen } from "@/lib/lumen";
+import { generateImagesOpenRouter } from "@/lib/openrouter-image";
 
 export const runtime = "nodejs";
 export const maxDuration = 180;
@@ -184,12 +185,25 @@ export async function POST(req: Request) {
     .slice(0, 4)
     .map((p, i) => ({ pageNumber: i + 1, text: p.text.trim() }));
 
-  // Generate one illustration per page in parallel via Lumen. Each failure is independent.
-  if (process.env.LUMEN_TOKEN) {
+  // Generate one illustration per page in parallel. Each failure is independent.
+  // IMAGE_PROVIDER picks the backend: openrouter (default), lumen, or none.
+  const provider = (process.env.IMAGE_PROVIDER ?? "openrouter").toLowerCase();
+  const totalPages = story.pages.length;
+  const styleHint = artStyleFor(age);
+  const prompts = story.pages.map((p, i) =>
+    buildPagePrompt(story.title, p.text, styleHint, i + 1, totalPages)
+  );
+
+  if (provider === "openrouter" && process.env.OPENROUTER_API_KEY) {
     try {
-      const styleHint = artStyleFor(age);
-      const prompts = story.pages.map((p) => buildPagePrompt(story.title, p.text, styleHint));
-      const images = await generateImages(prompts);
+      const images = await generateImagesOpenRouter(prompts);
+      story.pages = story.pages.map((p, i) => ({ ...p, imageUrl: images[i] ?? null }));
+    } catch (err) {
+      console.warn("OpenRouter image generation failed:", err);
+    }
+  } else if (provider === "lumen" && process.env.LUMEN_TOKEN) {
+    try {
+      const images = await generateImagesLumen(prompts);
       story.pages = story.pages.map((p, i) => ({ ...p, imageUrl: images[i] ?? null }));
     } catch (err) {
       console.warn("Lumen image generation failed:", err);
@@ -207,8 +221,14 @@ function artStyleFor(age: AgeRange) {
       : "richly detailed middle-grade book illustration, cinematic lighting, slightly more mature palette, magical atmosphere";
 }
 
-function buildPagePrompt(title: string, pageText: string, styleHint: string) {
+function buildPagePrompt(
+  title: string,
+  pageText: string,
+  styleHint: string,
+  pageNumber: number,
+  totalPages: number
+) {
   // Trim long page text for the prompt — illustrators care about the scene, not every line.
   const scene = pageText.replace(/\s+/g, " ").trim().slice(0, 600);
-  return `${styleHint}. A single illustration for one page of the children's book "${title}". Scene to depict: ${scene}. No text, no letters, no logos, no speech bubbles, no captions.`;
+  return `${styleHint}. A unique illustration for page ${pageNumber} of ${totalPages} from the children's book "${title}". This image must depict ONLY this specific scene (different from other pages): ${scene}. Composition should match the action and mood of this exact moment. No text, no letters, no logos, no speech bubbles, no captions, no page numbers.`;
 }

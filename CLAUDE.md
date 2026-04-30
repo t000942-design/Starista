@@ -7,14 +7,15 @@ A free, no-login web app that generates short illustrated-style 4-page bedtime s
 - Next.js 16 (App Router, TypeScript)
 - Tailwind CSS v4
 - OpenRouter for the LLM (default model: `google/gemini-2.5-flash`)
-- Lumen Pro (MCP-over-HTTP) for cover illustrations (default model: `imagen-4`, 6 credits)
+- Per-page illustrations via OpenRouter (default: `google/gemini-2.5-flash-image` aka Nano Banana) or Lumen Pro (`imagen-4`)
 - No database, no auth — public service
 
 ## Structure
 
-- `src/app/page.tsx` — single-page UI (idea form + 4-page story viewer with cover)
-- `src/app/api/generate/route.ts` — POST endpoint: calls OpenRouter for the story, then Lumen for a cover image. Returns `{ title, pages, coverImageUrl }`
-- `src/lib/lumen.ts` — minimal MCP-over-HTTP client for Lumen Pro (`generateCoverImage`)
+- `src/app/page.tsx` — single-page UI (idea form + 4-page story viewer)
+- `src/app/api/generate/route.ts` — POST endpoint: calls OpenRouter for the story, then per-page images via the configured `IMAGE_PROVIDER`. Returns `{ title, pages: [{ pageNumber, text, imageUrl }] }`
+- `src/lib/openrouter-image.ts` — OpenRouter image generation (default provider)
+- `src/lib/lumen.ts` — Lumen Pro MCP-over-HTTP client (alternate provider)
 - `src/app/globals.css` — dark theme + gradient utilities
 - `src/app/layout.tsx` — root layout & metadata
 
@@ -24,8 +25,10 @@ Copy `.env.local.example` → `.env.local` and fill in:
 
 - `OPENROUTER_API_KEY` (required) — get one at https://openrouter.ai/keys
 - `OPENROUTER_MODEL` (optional) — defaults to `google/gemini-2.5-flash`
+- `OPENROUTER_IMAGE_MODEL` (optional) — defaults to `google/gemini-2.5-flash-image-preview`
 - `OPENROUTER_SITE_URL`, `OPENROUTER_SITE_NAME` (optional, used by OpenRouter for attribution)
-- `LUMEN_TOKEN` (optional) — bearer token from https://app.lumenpro.io. Without it, stories are text-only.
+- `IMAGE_PROVIDER` (optional) — `openrouter` (default), `lumen`, or `none`
+- `LUMEN_TOKEN` (only if `IMAGE_PROVIDER=lumen`) — bearer token from https://app.lumenpro.io
 - `LUMEN_MODEL_ID` (optional) — defaults to `19` (imagen-4)
 - `LUMEN_ASPECT_RATIO` (optional) — defaults to `16:9`
 
