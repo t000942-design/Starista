@@ -8,12 +8,14 @@ A free, no-login web app that generates short illustrated-style 4-page bedtime s
 - Tailwind CSS v4
 - OpenRouter for the LLM — story uses a 3-model `:free` fallback chain (small/fast Nemotron and Gemma variants); set `OPENROUTER_MODEL` to override with a paid model for higher quality
 - OpenRouter for per-page illustrations by default (`google/gemini-2.5-flash-image` aka Nano Banana, paid). Lumen Pro available via `IMAGE_PROVIDER=lumen`.
+- ElevenLabs for "Read aloud" narration (TTS, on-demand per page; optional)
 - No database, no auth — public service
 
 ## Structure
 
 - `src/app/page.tsx` — single-page UI (idea form + 4-page story viewer)
 - `src/app/api/generate/route.ts` — POST endpoint: calls OpenRouter for the story, then per-page images via the configured `IMAGE_PROVIDER`. Returns `{ title, pages: [{ pageNumber, text, imageUrl }] }`
+- `src/app/api/narrate/route.ts` — POST endpoint: takes `{ text }`, returns `audio/mpeg` from ElevenLabs (default voice: Bella, model: `eleven_turbo_v2_5`). Used by the per-page "Read aloud" button.
 - `src/lib/openrouter-image.ts` — OpenRouter image generation (default provider)
 - `src/lib/lumen.ts` — Lumen Pro MCP-over-HTTP client (alternate provider)
 - `src/app/globals.css` — dark theme + gradient utilities
@@ -28,6 +30,8 @@ Copy `.env.local.example` → `.env.local` and fill in:
 - `OPENROUTER_IMAGE_MODEL` (optional) — defaults to `google/gemini-2.5-flash-image`
 - `OPENROUTER_SITE_URL`, `OPENROUTER_SITE_NAME` (optional, used by OpenRouter for attribution)
 - `IMAGE_PROVIDER` (optional) — `openrouter` (default, paid), `lumen`, or `none`
+- `ELEVENLABS_API_KEY` (optional) — enables "Read aloud" narration. Needs `text_to_speech` scope.
+- `ELEVENLABS_VOICE_ID` (optional) — defaults to Bella (`EXAVITQu4vr4xnSDxMaL`)
 - `LUMEN_TOKEN` (only if `IMAGE_PROVIDER=lumen`) — bearer token from https://app.lumenpro.io
 - `LUMEN_MODEL_ID` (optional) — defaults to `19` (imagen-4)
 - `LUMEN_ASPECT_RATIO` (optional) — defaults to `16:9`

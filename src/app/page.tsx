@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 type AgeRange = "4-6" | "7-9" | "10-12";
 type StoryPage = { pageNumber: number; text: string; imageUrl?: string | null };
@@ -26,6 +26,76 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [story, setStory] = useState<Story | null>(null);
   const [pageIndex, setPageIndex] = useState(0);
+
+  // Per-page narration cache: pageNumber -> blob URL
+  const audioCache = useRef<Map<number, string>>(new Map());
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [narrating, setNarrating] = useState(false);
+  const [narrateError, setNarrateError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Stop playback when changing pages or stories
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    setNarrating(false);
+    setNarrateError(null);
+  }, [pageIndex, story]);
+
+  async function readPage() {
+    if (!story) return;
+    const page = story.pages[pageIndex];
+    if (!page) return;
+
+    setNarrateError(null);
+
+    if (audioRef.current && !audioRef.current.paused) {
+      audioRef.current.pause();
+      setNarrating(false);
+      return;
+    }
+
+    let url = audioCache.current.get(page.pageNumber);
+    if (!url) {
+      try {
+        setNarrating(true);
+        const textWithTitle =
+          pageIndex === 0 ? `${story.title}. ${page.text}` : page.text;
+        const res = await fetch("/api/narrate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: textWithTitle }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data?.error ?? `Narration failed (${res.status}).`);
+        }
+        const blob = await res.blob();
+        url = URL.createObjectURL(blob);
+        audioCache.current.set(page.pageNumber, url);
+      } catch (err) {
+        setNarrating(false);
+        setNarrateError(
+          err instanceof Error ? err.message : "Narration failed."
+        );
+        return;
+      }
+    }
+
+    const audio = new Audio(url);
+    audioRef.current = audio;
+    audio.onended = () => setNarrating(false);
+    audio.onerror = () => {
+      setNarrating(false);
+      setNarrateError("Couldn't play audio.");
+    };
+    setNarrating(true);
+    audio.play().catch(() => {
+      setNarrating(false);
+      setNarrateError("Couldn't play audio.");
+    });
+  }
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -188,14 +258,27 @@ export default function Home() {
               </div>
 
               <article className="bg-[var(--bg-elev)] border border-[var(--border)] rounded-3xl overflow-hidden shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
-                {story.pages[pageIndex]?.imageUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={story.pages[pageIndex]!.imageUrl!}
-                    alt={`Illustration for page ${pageIndex + 1}`}
-                    className="w-full aspect-[16/9] object-cover"
-                  />
-                )}
+                <div className="w-full aspect-[16/9] bg-[var(--surface)] border-b border-[var(--border)] flex items-center justify-center overflow-hidden">
+                  {story.pages[pageIndex]?.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={story.pages[pageIndex]!.imageUrl!}
+                      alt={`Illustration for page ${pageIndex + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="text-center px-6">
+                      <div className="text-4xl mb-2 opacity-40">🖼️</div>
+                      <p className="text-sm text-[var(--muted)]">
+                        Illustration unavailable
+                      </p>
+                      <p className="text-xs text-[var(--muted)] mt-1 opacity-70">
+                        Add OpenRouter credits or set IMAGE_PROVIDER=lumen
+                      </p>
+                    </div>
+                  )}
+                </div>
+
                 <div className="p-6 sm:p-10 min-h-[240px]">
                   {pageIndex === 0 && (
                     <h2 className="text-2xl sm:text-3xl font-bold tracking-tight gradient-text mb-4">
@@ -204,6 +287,25 @@ export default function Home() {
                   )}
                   <div className="text-base sm:text-lg leading-relaxed whitespace-pre-wrap">
                     {story.pages[pageIndex]?.text}
+                  </div>
+
+                  <div className="mt-5 flex items-center gap-3">
+                    <button
+                      onClick={readPage}
+                      className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-[var(--border)] hover:border-[#2f3547] text-sm font-medium transition"
+                    >
+                      {narrating ? (
+                        <>
+                          <span className="inline-block w-3.5 h-3.5 border-2 border-[var(--muted)] border-t-white rounded-full animate-spin" />
+                          Reading…
+                        </>
+                      ) : (
+                        <>🔊 Read aloud</>
+                      )}
+                    </button>
+                    {narrateError && (
+                      <span className="text-xs text-red-400">{narrateError}</span>
+                    )}
                   </div>
                 </div>
               </article>
