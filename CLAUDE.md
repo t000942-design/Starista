@@ -27,7 +27,7 @@ Copy `.env.local.example` → `.env.local` and fill in:
 - `OPENROUTER_MODEL` (optional) — defaults to a `:free` fallback chain. Set to a paid model (e.g. `google/gemini-2.5-flash`) for higher quality.
 - `OPENROUTER_IMAGE_MODEL` (optional) — defaults to `google/gemini-2.5-flash-image`
 - `OPENROUTER_SITE_URL`, `OPENROUTER_SITE_NAME` (optional, used by OpenRouter for attribution)
-- `IMAGE_PROVIDER` (optional) — `openrouter` (default), `lumen`, or `none`
+- `IMAGE_PROVIDER` (optional) — `openrouter` (default, paid), `lumen`, or `none`
 - `LUMEN_TOKEN` (only if `IMAGE_PROVIDER=lumen`) — bearer token from https://app.lumenpro.io
 - `LUMEN_MODEL_ID` (optional) — defaults to `19` (imagen-4)
 - `LUMEN_ASPECT_RATIO` (optional) — defaults to `16:9`

@@ -176,12 +176,22 @@ export async function generateImages(
   prompts: string[],
   opts: { modelId?: number; aspectRatio?: string } = {}
 ): Promise<(string | null)[]> {
-  const settled = await Promise.allSettled(
-    prompts.map((p) => generateImage(p, opts))
-  );
-  return settled.map((r, i) => {
-    if (r.status === "fulfilled") return r.value;
-    console.warn(`[lumen] image ${i + 1} failed:`, r.reason);
-    return null;
-  });
+  // Lumen's imagen-4 sometimes returns a soft "Generation failed" message
+  // (especially under concurrent load). Run sequentially with one retry
+  // per slot — reliability is more important than total wall time here.
+  const results: (string | null)[] = [];
+  for (let i = 0; i < prompts.length; i++) {
+    let url: string | null = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        url = await generateImage(prompts[i], opts);
+        if (url) break;
+      } catch (err) {
+        console.warn(`[lumen] image ${i + 1} attempt ${attempt + 1} threw:`, err);
+      }
+    }
+    if (!url) console.warn(`[lumen] image ${i + 1} gave up after retries`);
+    results.push(url);
+  }
+  return results;
 }

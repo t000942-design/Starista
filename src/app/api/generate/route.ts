@@ -197,7 +197,7 @@ export async function POST(req: Request) {
     .map((p, i) => ({ pageNumber: i + 1, text: p.text.trim() }));
 
   // Generate one illustration per page. IMAGE_PROVIDER picks the backend:
-  // openrouter (default), lumen, or none.
+  // openrouter (default, paid Nano Banana), lumen, or none.
   const provider = (process.env.IMAGE_PROVIDER ?? "openrouter").toLowerCase();
   const totalPages = story.pages.length;
   const styleHint = artStyleFor(age);
