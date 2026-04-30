@@ -143,7 +143,7 @@ export async function POST(req: Request) {
         model: modelsForRequest[0],
         models: modelsForRequest,
         temperature: 0.9,
-        max_tokens: 4000,
+        max_tokens: 8000,
         messages: [
           {
             role: "system",
