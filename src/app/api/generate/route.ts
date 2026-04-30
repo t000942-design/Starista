@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { generateImages as generateImagesLumen } from "@/lib/lumen";
 import { generateImagesOpenRouter } from "@/lib/openrouter-image";
-import { generateImagesPollinations } from "@/lib/pollinations-image";
 
 export const runtime = "nodejs";
 export const maxDuration = 180;
@@ -198,20 +197,15 @@ export async function POST(req: Request) {
     .map((p, i) => ({ pageNumber: i + 1, text: p.text.trim() }));
 
   // Generate one illustration per page. IMAGE_PROVIDER picks the backend:
-  // pollinations (default, free), openrouter (paid credits), lumen, or none.
-  const provider = (process.env.IMAGE_PROVIDER ?? "pollinations").toLowerCase();
+  // openrouter (default), lumen, or none.
+  const provider = (process.env.IMAGE_PROVIDER ?? "openrouter").toLowerCase();
   const totalPages = story.pages.length;
   const styleHint = artStyleFor(age);
   const prompts = story.pages.map((p, i) =>
     buildPagePrompt(story.title, p.text, styleHint, i + 1, totalPages)
   );
 
-  if (provider === "pollinations") {
-    // Pollinations builds URLs synchronously — the browser fetches each image
-    // when it renders the <img>. No upstream call from this route.
-    const images = generateImagesPollinations(prompts);
-    story.pages = story.pages.map((p, i) => ({ ...p, imageUrl: images[i] }));
-  } else if (provider === "openrouter" && process.env.OPENROUTER_API_KEY) {
+  if (provider === "openrouter" && process.env.OPENROUTER_API_KEY) {
     try {
       const images = await generateImagesOpenRouter(prompts);
       story.pages = story.pages.map((p, i) => ({ ...p, imageUrl: images[i] ?? null }));

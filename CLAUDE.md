@@ -7,16 +7,15 @@ A free, no-login web app that generates short illustrated-style 4-page bedtime s
 - Next.js 16 (App Router, TypeScript)
 - Tailwind CSS v4
 - OpenRouter for the LLM — story uses a 3-model `:free` fallback chain (small/fast Nemotron and Gemma variants); set `OPENROUTER_MODEL` to override with a paid model for higher quality
-- Pollinations.ai for per-page illustrations by default (free public API, no auth, no quota). OpenRouter Nano Banana and Lumen Pro are available via `IMAGE_PROVIDER`.
+- OpenRouter for per-page illustrations by default (`google/gemini-2.5-flash-image` aka Nano Banana, paid). Lumen Pro available via `IMAGE_PROVIDER=lumen`.
 - No database, no auth — public service
 
 ## Structure
 
 - `src/app/page.tsx` — single-page UI (idea form + 4-page story viewer)
 - `src/app/api/generate/route.ts` — POST endpoint: calls OpenRouter for the story, then per-page images via the configured `IMAGE_PROVIDER`. Returns `{ title, pages: [{ pageNumber, text, imageUrl }] }`
-- `src/lib/pollinations-image.ts` — Pollinations.ai URL builder (default image provider, free)
-- `src/lib/openrouter-image.ts` — OpenRouter image generation (paid)
-- `src/lib/lumen.ts` — Lumen Pro MCP-over-HTTP client (paid)
+- `src/lib/openrouter-image.ts` — OpenRouter image generation (default provider)
+- `src/lib/lumen.ts` — Lumen Pro MCP-over-HTTP client (alternate provider)
 - `src/app/globals.css` — dark theme + gradient utilities
 - `src/app/layout.tsx` — root layout & metadata
 
@@ -28,8 +27,7 @@ Copy `.env.local.example` → `.env.local` and fill in:
 - `OPENROUTER_MODEL` (optional) — defaults to a `:free` fallback chain. Set to a paid model (e.g. `google/gemini-2.5-flash`) for higher quality.
 - `OPENROUTER_IMAGE_MODEL` (optional) — defaults to `google/gemini-2.5-flash-image`
 - `OPENROUTER_SITE_URL`, `OPENROUTER_SITE_NAME` (optional, used by OpenRouter for attribution)
-- `IMAGE_PROVIDER` (optional) — `pollinations` (default, free), `openrouter` (paid), `lumen`, or `none`
-- `POLLINATIONS_MODEL` (optional) — defaults to `flux`
+- `IMAGE_PROVIDER` (optional) — `openrouter` (default), `lumen`, or `none`
 - `LUMEN_TOKEN` (only if `IMAGE_PROVIDER=lumen`) — bearer token from https://app.lumenpro.io
 - `LUMEN_MODEL_ID` (optional) — defaults to `19` (imagen-4)
 - `LUMEN_ASPECT_RATIO` (optional) — defaults to `16:9`
