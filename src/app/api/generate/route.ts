@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { generateImages as generateImagesLumen } from "@/lib/lumen";
 import { generateImagesOpenRouter } from "@/lib/openrouter-image";
+import { generateImagesPollinations } from "@/lib/pollinations-image";
 
 export const runtime = "nodejs";
 export const maxDuration = 180;
@@ -114,7 +115,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid age range." }, { status: 400 });
   }
 
-  const model = process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash";
+  // Use a fallback chain of free models so we shrug off per-model rate limits.
+  // OpenRouter tries them in order and uses the first that responds.
+  // If OPENROUTER_MODEL is set we honor it; otherwise we use the free chain.
+  // OpenRouter caps the fallback list at 3 models. Pick smaller/faster free
+  // models that respond in seconds, not minutes.
+  const FREE_FALLBACK = [
+    "nvidia/nemotron-nano-9b-v2:free",
+    "google/gemma-3-4b-it:free",
+    "google/gemma-4-26b-a4b-it:free",
+  ];
+  const modelOverride = process.env.OPENROUTER_MODEL;
+  const modelsForRequest = modelOverride ? [modelOverride] : FREE_FALLBACK;
   const prompt = buildPrompt(idea, age);
 
   let upstream: Response;
@@ -129,15 +141,15 @@ export async function POST(req: Request) {
         "X-Title": process.env.OPENROUTER_SITE_NAME ?? "Storista",
       },
       body: JSON.stringify({
-        model,
+        model: modelsForRequest[0],
+        models: modelsForRequest,
         temperature: 0.9,
         max_tokens: 4000,
-        response_format: { type: "json_object" },
         messages: [
           {
             role: "system",
             content:
-              "You are a kind, imaginative children's book author. Always respond with valid JSON only.",
+              "You are a kind, imaginative children's book author. Always respond with a single valid JSON object — no prose, no markdown fences.",
           },
           { role: "user", content: prompt },
         ],
@@ -185,16 +197,21 @@ export async function POST(req: Request) {
     .slice(0, 4)
     .map((p, i) => ({ pageNumber: i + 1, text: p.text.trim() }));
 
-  // Generate one illustration per page in parallel. Each failure is independent.
-  // IMAGE_PROVIDER picks the backend: openrouter (default), lumen, or none.
-  const provider = (process.env.IMAGE_PROVIDER ?? "openrouter").toLowerCase();
+  // Generate one illustration per page. IMAGE_PROVIDER picks the backend:
+  // pollinations (default, free), openrouter (paid credits), lumen, or none.
+  const provider = (process.env.IMAGE_PROVIDER ?? "pollinations").toLowerCase();
   const totalPages = story.pages.length;
   const styleHint = artStyleFor(age);
   const prompts = story.pages.map((p, i) =>
     buildPagePrompt(story.title, p.text, styleHint, i + 1, totalPages)
   );
 
-  if (provider === "openrouter" && process.env.OPENROUTER_API_KEY) {
+  if (provider === "pollinations") {
+    // Pollinations builds URLs synchronously — the browser fetches each image
+    // when it renders the <img>. No upstream call from this route.
+    const images = generateImagesPollinations(prompts);
+    story.pages = story.pages.map((p, i) => ({ ...p, imageUrl: images[i] }));
+  } else if (provider === "openrouter" && process.env.OPENROUTER_API_KEY) {
     try {
       const images = await generateImagesOpenRouter(prompts);
       story.pages = story.pages.map((p, i) => ({ ...p, imageUrl: images[i] ?? null }));
