@@ -2,26 +2,64 @@
 
 import { useState, type FormEvent } from "react";
 
-export default function Home() {
-  const [email, setEmail] = useState("");
-  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+type AgeRange = "4-6" | "7-9" | "10-12";
+type StoryPage = { pageNumber: number; text: string };
+type Story = { title: string; pages: StoryPage[] };
 
-  function onSubmit(e: FormEvent<HTMLFormElement>) {
+const AGE_OPTIONS: { value: AgeRange; label: string }[] = [
+  { value: "4-6", label: "Ages 4–6" },
+  { value: "7-9", label: "Ages 7–9" },
+  { value: "10-12", label: "Ages 10–12" },
+];
+
+const IDEA_EXAMPLES = [
+  "A shy octopus who learns to play the trumpet",
+  "A small dragon who is afraid of fire",
+  "Two best friends find a door inside a tree",
+  "A robot who wants to grow a flower",
+];
+
+export default function Home() {
+  const [idea, setIdea] = useState("");
+  const [age, setAge] = useState<AgeRange>("4-6");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [story, setStory] = useState<Story | null>(null);
+  const [pageIndex, setPageIndex] = useState(0);
+
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const value = email.trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-      setMsg({ text: "Please enter a valid email address.", ok: false });
+    setError(null);
+    if (idea.trim().length < 4) {
+      setError("Please share a story idea (a few words is enough).");
       return;
     }
-    if (typeof window !== "undefined") {
-      const list = JSON.parse(
-        localStorage.getItem("storista:waitlist") || "[]"
-      ) as string[];
-      if (!list.includes(value)) list.push(value);
-      localStorage.setItem("storista:waitlist", JSON.stringify(list));
+    setLoading(true);
+    setStory(null);
+    setPageIndex(0);
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idea, age }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data?.error ?? "Something went wrong. Please try again.");
+      } else {
+        setStory(data as Story);
+      }
+    } catch {
+      setError("Could not reach the story service. Please try again.");
+    } finally {
+      setLoading(false);
     }
-    setMsg({ text: "You're on the list — we'll be in touch soon. ✨", ok: true });
-    setEmail("");
+  }
+
+  function reset() {
+    setStory(null);
+    setError(null);
+    setPageIndex(0);
   }
 
   return (
@@ -34,247 +72,179 @@ export default function Home() {
             </span>
             <span>Storista</span>
           </a>
-          <nav className="flex items-center gap-4 text-sm">
-            <a className="hidden sm:inline text-[var(--muted)] hover:text-white" href="#features">
-              Features
-            </a>
-            <a className="hidden sm:inline text-[var(--muted)] hover:text-white" href="#pricing">
-              Pricing
-            </a>
-            <a className="hidden sm:inline text-[var(--muted)] hover:text-white" href="#about">
-              About
-            </a>
-            <a
-              href="#cta"
-              className="px-4 py-2 rounded-lg border border-[var(--border)] hover:border-[#2f3547] transition"
-            >
-              Sign in
-            </a>
-            <a
-              href="#cta"
-              className="px-4 py-2 rounded-lg btn-primary text-white font-semibold transition"
-            >
-              Get started
-            </a>
-          </nav>
+          <span className="text-[var(--muted)] text-sm hidden sm:inline">
+            Bedtime stories, made just for them.
+          </span>
         </div>
       </header>
 
-      <main className="flex-1">
-        <section className="px-6 pt-20 pb-16 text-center">
-          <div className="max-w-[1100px] mx-auto">
-            <span className="inline-block px-3 py-1.5 border border-[var(--border)] rounded-full text-[var(--muted)] text-xs mb-4">
-              New · Now in private beta
-            </span>
-            <h1 className="text-4xl sm:text-6xl font-bold leading-[1.05] tracking-tight">
-              Tell your story, <span className="gradient-text">beautifully</span>.
-            </h1>
-            <p className="mt-4 text-lg text-[var(--muted)] max-w-[640px] mx-auto">
-              Storista is the modern home for creators to capture, craft, and share
-              stories that resonate — without wrestling with tools.
-            </p>
+      <main className="flex-1 px-6 py-10 sm:py-16">
+        <div className="max-w-[820px] mx-auto">
+          {!story && (
+            <section className="text-center">
+              <span className="inline-block px-3 py-1.5 border border-[var(--border)] rounded-full text-[var(--muted)] text-xs mb-4">
+                ✨ Free · No sign-up
+              </span>
+              <h1 className="text-4xl sm:text-5xl font-bold leading-tight tracking-tight">
+                Tell us an idea, get a{" "}
+                <span className="gradient-text">4-page story</span>.
+              </h1>
+              <p className="mt-3 text-[var(--muted)] max-w-[600px] mx-auto">
+                Type any tiny spark — a character, a place, a feeling — and we&apos;ll
+                turn it into a kind, age-perfect bedtime story.
+              </p>
 
-            <form
-              onSubmit={onSubmit}
-              className="mt-7 flex flex-col sm:flex-row gap-2 max-w-[480px] mx-auto"
-            >
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@domain.com"
-                aria-label="Email address"
-                className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3.5 py-3 text-sm outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[rgba(124,92,255,0.25)]"
-              />
-              <button
-                type="submit"
-                className="px-4 py-3 rounded-lg btn-primary text-white font-semibold"
-              >
-                Join the waitlist
-              </button>
-            </form>
-            <p
-              role="status"
-              aria-live="polite"
-              className={`mt-3 text-sm min-h-[1.4em] ${
-                msg ? (msg.ok ? "text-emerald-400" : "text-red-400") : "text-[var(--muted)]"
-              }`}
-            >
-              {msg?.text ?? ""}
-            </p>
-          </div>
-        </section>
-
-        <section id="features" className="px-6 py-16">
-          <div className="max-w-[1100px] mx-auto">
-            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-center mb-8">
-              Built for storytellers, not toolmakers.
-            </h2>
-            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-              {[
-                {
-                  icon: "✍️",
-                  title: "Distraction-free writing",
-                  body: "A focused canvas that gets out of your way and lets the words flow.",
-                },
-                {
-                  icon: "🎨",
-                  title: "Beautiful by default",
-                  body: "Hand-tuned typography and layouts that look polished from the first draft.",
-                },
-                {
-                  icon: "🌐",
-                  title: "Share anywhere",
-                  body: "Publish to the web, export to PDF, or syndicate to your favorite platforms.",
-                },
-                {
-                  icon: "🤝",
-                  title: "Collaborate live",
-                  body: "Invite editors and collaborators with granular permissions and history.",
-                },
-              ].map((f) => (
-                <article
-                  key={f.title}
-                  className="bg-[var(--bg-elev)] border border-[var(--border)] rounded-2xl p-5 shadow-[0_10px_30px_rgba(0,0,0,0.35)] hover:-translate-y-0.5 hover:border-[#2f3547] transition"
+              <form onSubmit={onSubmit} className="mt-8 text-left">
+                <label
+                  htmlFor="idea"
+                  className="block text-sm font-medium mb-2"
                 >
-                  <div className="text-2xl mb-2">{f.icon}</div>
-                  <h3 className="text-base font-semibold mb-1">{f.title}</h3>
-                  <p className="text-sm text-[var(--muted)]">{f.body}</p>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
+                  What should the story be about?
+                </label>
+                <textarea
+                  id="idea"
+                  value={idea}
+                  onChange={(e) => setIdea(e.target.value)}
+                  rows={4}
+                  maxLength={800}
+                  placeholder="e.g. A shy little fox who finds a glowing stone in the forest…"
+                  className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 text-base outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[rgba(124,92,255,0.25)] resize-none"
+                />
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {IDEA_EXAMPLES.map((ex) => (
+                    <button
+                      key={ex}
+                      type="button"
+                      onClick={() => setIdea(ex)}
+                      className="text-xs text-[var(--muted)] border border-[var(--border)] hover:border-[#2f3547] hover:text-white rounded-full px-3 py-1.5 transition"
+                    >
+                      {ex}
+                    </button>
+                  ))}
+                </div>
 
-        <section id="pricing" className="px-6 py-16">
-          <div className="max-w-[1100px] mx-auto">
-            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-center">
-              Simple pricing.
-            </h2>
-            <p className="text-[var(--muted)] text-center mt-2 mb-8">
-              Start free. Upgrade when your story finds its audience.
-            </p>
-            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-              {[
-                {
-                  name: "Starter",
-                  price: "$0",
-                  features: ["Up to 3 stories", "Basic themes", "Community support"],
-                  cta: "Get started",
-                  primary: false,
-                },
-                {
-                  name: "Creator",
-                  price: "$9",
-                  features: [
-                    "Unlimited stories",
-                    "Premium themes",
-                    "Custom domain",
-                    "Priority support",
-                  ],
-                  cta: "Start free trial",
-                  primary: true,
-                },
-                {
-                  name: "Studio",
-                  price: "$29",
-                  features: [
-                    "Team collaboration",
-                    "Brand kit",
-                    "Analytics",
-                    "SSO & audit logs",
-                  ],
-                  cta: "Contact sales",
-                  primary: false,
-                },
-              ].map((p) => (
-                <article
-                  key={p.name}
-                  className={`relative bg-[var(--bg-elev)] border rounded-2xl p-5 flex flex-col gap-2 ${
-                    p.primary
-                      ? "border-[rgba(124,92,255,0.6)] shadow-[0_10px_30px_rgba(124,92,255,0.18)]"
-                      : "border-[var(--border)]"
-                  }`}
-                >
-                  {p.primary && (
-                    <span className="absolute -top-2.5 right-4 btn-primary text-white text-[11px] tracking-wide uppercase px-2 py-1 rounded-full">
-                      Most popular
-                    </span>
-                  )}
-                  <h3 className="text-lg font-semibold">{p.name}</h3>
-                  <p className="text-3xl font-bold mt-1">
-                    {p.price}
-                    <span className="text-sm text-[var(--muted)] font-medium">/mo</span>
+                <fieldset className="mt-6">
+                  <legend className="block text-sm font-medium mb-2">
+                    Who is it for?
+                  </legend>
+                  <div className="grid grid-cols-3 gap-2">
+                    {AGE_OPTIONS.map((opt) => {
+                      const active = opt.value === age;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setAge(opt.value)}
+                          aria-pressed={active}
+                          className={`px-3 py-2.5 rounded-lg text-sm font-medium border transition ${
+                            active
+                              ? "btn-primary text-white border-transparent"
+                              : "bg-[var(--surface)] border-[var(--border)] text-[var(--muted)] hover:text-white hover:border-[#2f3547]"
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+
+                {error && (
+                  <p className="mt-4 text-sm text-red-400" role="alert">
+                    {error}
                   </p>
-                  <ul className="mt-2 mb-3 text-sm text-[var(--muted)]">
-                    {p.features.map((f) => (
-                      <li
-                        key={f}
-                        className="py-1.5 border-b border-dashed border-[var(--border)] last:border-b-0"
-                      >
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
-                  <a
-                    href="#cta"
-                    className={`mt-auto text-center px-4 py-2 rounded-lg text-sm font-semibold ${
-                      p.primary
-                        ? "btn-primary text-white"
-                        : "border border-[var(--border)] hover:border-[#2f3547]"
-                    }`}
-                  >
-                    {p.cta}
-                  </a>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
+                )}
 
-        <section id="cta" className="px-6 py-20">
-          <div className="max-w-[1100px] mx-auto text-center bg-[linear-gradient(180deg,rgba(124,92,255,0.12),rgba(34,211,238,0.06))] border border-[var(--border)] rounded-3xl p-10">
-            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">
-              Ready to begin?
-            </h2>
-            <p className="text-[var(--muted)] mt-2 mb-5">
-              Be one of the first to experience Storista.
-            </p>
-            <a
-              href="#"
-              onClick={(e) => {
-                e.preventDefault();
-                const input = document.querySelector(
-                  'input[type="email"]'
-                ) as HTMLInputElement | null;
-                input?.scrollIntoView({ behavior: "smooth", block: "center" });
-                input?.focus();
-              }}
-              className="inline-block px-6 py-3.5 rounded-xl btn-primary text-white font-semibold text-base"
-            >
-              Join the waitlist
-            </a>
-          </div>
-        </section>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="mt-6 w-full sm:w-auto px-6 py-3.5 rounded-xl btn-primary text-white font-semibold text-base disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <span className="inline-block w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                      Writing your story…
+                    </>
+                  ) : (
+                    <>✨ Create my story</>
+                  )}
+                </button>
+              </form>
+            </section>
+          )}
+
+          {story && (
+            <section>
+              <div className="flex items-center justify-between mb-4">
+                <button
+                  onClick={reset}
+                  className="text-sm text-[var(--muted)] hover:text-white inline-flex items-center gap-1"
+                >
+                  ← New story
+                </button>
+                <span className="text-xs text-[var(--muted)]">
+                  Page {pageIndex + 1} of {story.pages.length}
+                </span>
+              </div>
+
+              <article className="bg-[var(--bg-elev)] border border-[var(--border)] rounded-3xl p-6 sm:p-10 shadow-[0_10px_30px_rgba(0,0,0,0.35)] min-h-[420px]">
+                <h2 className="text-2xl sm:text-3xl font-bold tracking-tight gradient-text">
+                  {story.title}
+                </h2>
+                <div className="mt-6 text-base sm:text-lg leading-relaxed whitespace-pre-wrap">
+                  {story.pages[pageIndex]?.text}
+                </div>
+              </article>
+
+              <div className="mt-5 flex items-center justify-between gap-3">
+                <button
+                  onClick={() => setPageIndex((i) => Math.max(0, i - 1))}
+                  disabled={pageIndex === 0}
+                  className="px-4 py-2.5 rounded-lg border border-[var(--border)] text-sm font-medium hover:border-[#2f3547] disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  ← Previous
+                </button>
+
+                <div className="flex gap-1.5">
+                  {story.pages.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setPageIndex(i)}
+                      aria-label={`Go to page ${i + 1}`}
+                      className={`w-2.5 h-2.5 rounded-full transition ${
+                        i === pageIndex ? "bg-[var(--primary)]" : "bg-[var(--border)]"
+                      }`}
+                    />
+                  ))}
+                </div>
+
+                {pageIndex < story.pages.length - 1 ? (
+                  <button
+                    onClick={() =>
+                      setPageIndex((i) => Math.min(story.pages.length - 1, i + 1))
+                    }
+                    className="px-4 py-2.5 rounded-lg btn-primary text-white text-sm font-semibold"
+                  >
+                    Next →
+                  </button>
+                ) : (
+                  <button
+                    onClick={reset}
+                    className="px-4 py-2.5 rounded-lg btn-primary text-white text-sm font-semibold"
+                  >
+                    The End ✨
+                  </button>
+                )}
+              </div>
+            </section>
+          )}
+        </div>
       </main>
 
-      <footer
-        id="about"
-        className="border-t border-[var(--border)] py-6 text-sm text-[var(--muted)]"
-      >
+      <footer className="border-t border-[var(--border)] py-6 text-sm text-[var(--muted)]">
         <div className="max-w-[1100px] mx-auto px-6 flex flex-wrap items-center justify-between gap-3">
-          <p>© {new Date().getFullYear()} Storista. Crafted with care.</p>
-          <nav className="flex gap-4">
-            <a href="#" className="hover:text-white">
-              Privacy
-            </a>
-            <a href="#" className="hover:text-white">
-              Terms
-            </a>
-            <a href="mailto:hello@storista.app" className="hover:text-white">
-              Contact
-            </a>
-          </nav>
+          <p>© {new Date().getFullYear()} Storista. Stories made with care.</p>
+          <span className="text-xs">A free service. No accounts, no ads.</span>
         </div>
       </footer>
     </>
