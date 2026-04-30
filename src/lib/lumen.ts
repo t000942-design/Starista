@@ -1,7 +1,5 @@
 const LUMEN_URL = "https://app.lumenpro.io/mcp";
 
-let cachedSessionId: string | null = null;
-
 type JsonRpcResponse<T = unknown> =
   | { jsonrpc: "2.0"; id: number; result: T }
   | { jsonrpc: "2.0"; id: number; error: { code: number; message: string } };
@@ -83,8 +81,7 @@ async function notify(method: string, sessionId: string): Promise<void> {
   });
 }
 
-async function ensureSession(): Promise<string> {
-  if (cachedSessionId) return cachedSessionId;
+async function freshSession(): Promise<string> {
   const init = await rpc<unknown>(
     "initialize",
     {
@@ -95,9 +92,8 @@ async function ensureSession(): Promise<string> {
     1
   );
   if (!init.sessionId) throw new Error("Lumen did not return a session id");
-  cachedSessionId = init.sessionId;
-  await notify("notifications/initialized", cachedSessionId);
-  return cachedSessionId;
+  await notify("notifications/initialized", init.sessionId);
+  return init.sessionId;
 }
 
 type ToolCallResult = {
@@ -114,27 +110,15 @@ async function callTool(
   args: Record<string, unknown>,
   id: number
 ): Promise<ToolCallResult> {
-  const sessionId = await ensureSession();
-  try {
-    const { result } = await rpc<ToolCallResult>(
-      "tools/call",
-      { name, arguments: args },
-      id,
-      sessionId
-    );
-    return result;
-  } catch {
-    // Session may have expired — try once more with a fresh session
-    cachedSessionId = null;
-    const fresh = await ensureSession();
-    const { result } = await rpc<ToolCallResult>(
-      "tools/call",
-      { name, arguments: args },
-      id + 1,
-      fresh
-    );
-    return result;
-  }
+  // Each tool call gets its own session — avoids parallel-call contention on Lumen.
+  const sessionId = await freshSession();
+  const { result } = await rpc<ToolCallResult>(
+    "tools/call",
+    { name, arguments: args },
+    id,
+    sessionId
+  );
+  return result;
 }
 
 function extractImageUrl(result: ToolCallResult): string | null {
@@ -149,11 +133,15 @@ function extractImageUrl(result: ToolCallResult): string | null {
       }
     }
   }
-  // Some Lumen responses put the URL inside a text block — sniff for it
+  // Lumen returns the URL inside a text block, often wrapped in markdown like
+  // "[https://cdn.lumenpro.io/.../foo.png](https://cdn.lumenpro.io/.../foo.png)".
+  // Use a non-greedy character class that excludes brackets/parens/whitespace.
   for (const item of result.content) {
     if (item.type === "text" && typeof (item as { text: string }).text === "string") {
       const text = (item as { text: string }).text;
-      const match = text.match(/https?:\/\/\S+\.(?:png|jpg|jpeg|webp|gif)\b/i);
+      const match = text.match(
+        /https?:\/\/[^\s()\[\]]+?\.(?:png|jpg|jpeg|webp|gif)(?:\?[^\s()\[\]]*)?/i
+      );
       if (match) return match[0];
     }
   }
@@ -172,7 +160,16 @@ export async function generateImage(
     { model_id: modelId, prompt, aspect_ratio: aspectRatio },
     1000 + Math.floor(Math.random() * 100000)
   );
-  return extractImageUrl(result);
+  const url = extractImageUrl(result);
+  if (!url) {
+    console.warn(
+      "[lumen] No image URL found in result. isError=",
+      result.isError,
+      "content=",
+      JSON.stringify(result.content).slice(0, 500)
+    );
+  }
+  return url;
 }
 
 export async function generateImages(
@@ -182,5 +179,9 @@ export async function generateImages(
   const settled = await Promise.allSettled(
     prompts.map((p) => generateImage(p, opts))
   );
-  return settled.map((r) => (r.status === "fulfilled" ? r.value : null));
+  return settled.map((r, i) => {
+    if (r.status === "fulfilled") return r.value;
+    console.warn(`[lumen] image ${i + 1} failed:`, r.reason);
+    return null;
+  });
 }

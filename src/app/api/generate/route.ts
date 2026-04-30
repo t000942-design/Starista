@@ -130,6 +130,7 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         model,
         temperature: 0.9,
+        max_tokens: 4000,
         response_format: { type: "json_object" },
         messages: [
           {
@@ -166,6 +167,10 @@ export async function POST(req: Request) {
   const story = tryParseStory(content);
 
   if (!story) {
+    console.warn(
+      "[story] failed to parse model output. raw content:",
+      content.slice(0, 800)
+    );
     return NextResponse.json(
       {
         error:
